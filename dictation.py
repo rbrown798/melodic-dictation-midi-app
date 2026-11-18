@@ -1,9 +1,11 @@
 import mido
 import random
-mido.set_backend('mido.backends.pygame')
 import time
 import configparser
 import argparse
+
+
+mido.set_backend('mido.backends.pygame')
 
 
 NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'Bb', 'B']
