@@ -2,18 +2,25 @@ import mido
 import random
 mido.set_backend('mido.backends.pygame')
 import time
+import configparser
+import argparse
 
 
 NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'Bb', 'B']
 
 
 class MainApp:
-    def __init__(self):
+    def __init__(self, needs_config=False):
         self._notes = []
         self._inport = None
         self._outport = None
+        self._needs_config = needs_config
 
     def run(self):
+        if not self._get_midi_availability():
+            print('Midi unavailable.')
+            return False
+
         self._setup_midi_io()
         self._running = True
         print('(Press Ctrl+C to exit)')
@@ -32,12 +39,62 @@ class MainApp:
         except KeyboardInterrupt:
             self._exit()
 
+    def _get_midi_availability(self):
+        available_inputs = mido.get_input_names()
+        available_outputs = mido.get_output_names()
+
+        if not (available_inputs and available_outputs):
+            return False
+
+        return True
+
     def _setup_midi_io(self):
+        config = self._get_config()
+
+        if config is None or self._needs_config:
+            self._set_midi_config()
+
+        else:
+            self._restore_midi_config(config)
+
+    def _get_config(self):
+        config = configparser.ConfigParser()
+        if config.read('config.ini'):
+            return config
+
+        return None
+
+    def _set_midi_config(self):
         input_name = self._get_midi_input_name()
         output_name = self._get_midi_output_name()
+
+        config = configparser.ConfigParser()
+        config['MIDI'] = {'input_name': input_name, 'output_name': output_name}
+        with open('config.ini', 'w') as configfile:
+            config.write(configfile)
+
         self._inport = mido.open_input(input_name)
         self._outport = mido.open_output(output_name)
 
+    def _restore_midi_config(self, config):
+        available_inputs = mido.get_input_names()
+        available_outputs = mido.get_output_names()
+
+        input_name = available_inputs[0]
+        output_name = available_outputs[0]
+
+        config_input_name = config.get('MIDI', 'input_name')
+        config_output_name = config.get('MIDI', 'output_name')
+
+        if config_input_name in available_inputs:
+            input_name = config_input_name 
+
+        if config_output_name in available_outputs:
+            output_name = config_output_name
+
+        self._inport = mido.open_input(input_name)
+        self._outport = mido.open_output(output_name)
+        
     def _exit(self):
         self._inport.close()
         self._outport.close()
@@ -102,7 +159,12 @@ class MainApp:
 
 
 def main():
-    app = MainApp()
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-m', '--setup-midi', action='store_true', 
+        help='Configure MIDI IO when program starts')
+    args = parser.parse_args()
+
+    app = MainApp(args.setup_midi)
     app.run()
 
 
